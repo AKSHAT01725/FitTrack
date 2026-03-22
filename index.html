@@ -83,11 +83,10 @@ body::after{content:'';position:fixed;bottom:-150px;left:-150px;width:460px;heig
   border-bottom:1px solid var(--border);
   z-index:50;
   padding:0.85rem 1.1rem;
-  align-items:center;justify-content:space-between;
+  align-items:center;justify-content:center;
 }
 .mob-brand{display:flex;align-items:center;gap:0.5rem;font-weight:700;font-size:1rem;}
 .mob-brand span{color:var(--accent);}
-.hamburger{background:none;border:none;cursor:pointer;color:var(--text);font-size:1.3rem;padding:4px;line-height:1;}
 
 /* ===== MOBILE BOTTOM NAV ===== */
 .bottom-nav{
@@ -405,8 +404,6 @@ tbody tr:hover{background:rgba(255,255,255,0.02);}
 </head>
 <body>
 
-<!-- Mobile Topbar -->
-
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
@@ -415,7 +412,6 @@ tbody tr:hover{background:rgba(255,255,255,0.02);}
 
 <div class="mobile-topbar">
   <div class="mob-brand"><span>Fit</span>Track 🏃</div>
-  <button class="hamburger" onclick="toggleSidebar()">☰</button>
 </div>
 
 <!-- Sidebar Overlay -->
@@ -1238,7 +1234,6 @@ function renderAnalytics() {
 }
 
 function renderPeriodChart(sorted, periods, today) {
-  // Build data points: current + 1m + 3m + 6m + 1yr ago
   const points=[
     {label:'1 Yr ago',days:365},
     {label:'6 Mo ago',days:180},
@@ -1264,7 +1259,6 @@ function renderPeriodChart(sorted, periods, today) {
   grad.addColorStop(0,'rgba(167,139,250,0.22)');
   grad.addColorStop(1,'rgba(167,139,250,0)');
 
-  // colour each point: green if going down, red if going up
   const pointColors=data.map((v,i)=>{
     if (i===0||v===null) return '#a78bfa';
     const prev=data.slice(0,i).reverse().find(x=>x!==null);
@@ -1296,16 +1290,14 @@ function renderPeriodChart(sorted, periods, today) {
 function renderMonthlyChart(sorted) {
   if (!sorted.length) return;
 
-  // Group by month: take last entry per month
   const monthMap={};
   sorted.forEach(e=>{
-    const key=e.date.slice(0,7); // YYYY-MM
+    const key=e.date.slice(0,7);
     monthMap[key]=e.weight;
   });
   const months=Object.keys(monthMap).sort();
   if (months.length<2) return;
 
-  // Keep last 18 months max
   const trimmed=months.slice(-18);
   const labels=trimmed.map(m=>{
     const [y,mo]=m.split('-');
@@ -1423,7 +1415,6 @@ function parseCSVFile(file) {
     const text = e.target.result;
     const lines = text.trim().split('\n');
     const parsed = [];
-    // skip header row
     for (let i = 1; i < lines.length; i++) {
       const row = lines[i].split(',');
       if (row.length < 2) continue;
@@ -1431,7 +1422,6 @@ function parseCSVFile(file) {
       const weight = parseFloat(row[1].trim());
       const note = row.slice(2).join(',').trim().replace(/^"|"$/g,'');
       if (!date || isNaN(weight)) continue;
-      // validate date format YYYY-MM-DD
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
       parsed.push({ date, weight, note: note || '' });
     }
@@ -1463,7 +1453,6 @@ function cancelImport() {
 
 function confirmImport() {
   if (!pendingImport.length) return;
-  // Merge: existing entries + imported, deduplicate by date (imported wins)
   const merged = {};
   entries.forEach(e => { merged[e.date] = e; });
   pendingImport.forEach(e => { merged[e.date] = e; });
