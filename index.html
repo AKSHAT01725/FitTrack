@@ -353,6 +353,20 @@ tbody tr:hover{background:rgba(255,255,255,0.02);}
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
+/* ===== INLINE EDIT ===== */
+.edit-btn{background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:7px;color:var(--muted);font-size:0.76rem;transition:all 0.15s;font-family:'Poppins',sans-serif;}
+.edit-btn:hover{background:rgba(59,130,246,0.12);color:var(--accent2);}
+.row-actions{display:flex;gap:4px;align-items:center;}
+tr.editing td{background:rgba(59,130,246,0.06);border-bottom-color:var(--accent2);}
+tr.editing td:first-child{border-radius:8px 0 0 8px;}
+tr.editing td:last-child{border-radius:0 8px 8px 0;}
+.edit-input{background:var(--card2);border:1.5px solid var(--accent2);border-radius:8px;padding:0.35rem 0.55rem;color:var(--text);font-family:'Poppins',sans-serif;font-size:0.8rem;font-weight:500;outline:none;width:100%;box-shadow:0 0 0 2px rgba(59,130,246,0.12);}
+.edit-input:focus{box-shadow:0 0 0 3px rgba(59,130,246,0.22);}
+.save-btn{background:linear-gradient(135deg,var(--accent2),var(--purple));color:#fff;border:none;cursor:pointer;padding:5px 10px;border-radius:7px;font-family:'Poppins',sans-serif;font-size:0.72rem;font-weight:700;transition:all 0.15s;}
+.save-btn:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(59,130,246,0.35);}
+.cancel-btn{background:rgba(90,98,130,0.15);color:var(--muted);border:none;cursor:pointer;padding:5px 8px;border-radius:7px;font-family:'Poppins',sans-serif;font-size:0.72rem;font-weight:600;transition:all 0.15s;}
+.cancel-btn:hover{background:rgba(90,98,130,0.28);color:var(--text2);}
+
 /* ===== RESPONSIVE ===== */
 @media(max-width:900px){
   .kpi-grid{grid-template-columns:repeat(2,1fr);}
@@ -608,7 +622,7 @@ tbody tr:hover{background:rgba(255,255,255,0.02);}
     <!-- ====== HISTORY ====== -->
     <div class="page" id="page-history">
       <div class="topbar">
-        <div><div class="page-title">History 📋</div><div class="page-sub">All your weight entries</div></div>
+        <div><div class="page-title">History 📋</div><div class="page-sub">Click any row to edit • All your weight entries</div></div>
         <button class="btn-ghost" onclick="exportCSV()">⬇ Export CSV</button>
       </div>
       <div class="card">
@@ -1340,9 +1354,65 @@ function renderTable(sorted) {
     let dh='<span class="dw-no">—</span>';
     if (prev){const d=+(e.weight-prev.weight).toFixed(1);dh=d>0?`<span class="dw-up">▲ +${d}</span>`:d<0?`<span class="dw-dn">▼ ${d}</span>`:'<span class="dw-no">±0</span>';}
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${fmtDate(e.date)}</td><td class="wt-cell">${e.weight} kg</td><td>${dh}</td><td class="note-td" title="${e.note||''}">${e.note||'—'}</td><td><button class="del-btn" onclick="deleteEntry('${e.date}')">✕</button></td>`;
+    tr.dataset.date=e.date;
+    tr.innerHTML=`<td>${fmtDate(e.date)}</td><td class="wt-cell">${e.weight} kg</td><td>${dh}</td><td class="note-td" title="${e.note||''}">${e.note||'—'}</td><td><div class="row-actions"><button class="edit-btn" onclick="startEditRow('${e.date}',this)" title="Edit">✎</button><button class="del-btn" onclick="deleteEntry('${e.date}')">✕</button></div></td>`;
     tbody.appendChild(tr);
   });
+}
+
+function startEditRow(date, btn) {
+  // Cancel any other active edit first
+  const existing = G('logTable').querySelector('tr.editing');
+  if (existing) cancelEditRow(existing);
+
+  const entry = entries.find(e=>e.date===date);
+  if (!entry) return;
+  const tr = btn.closest('tr');
+  tr.classList.add('editing');
+  tr.innerHTML = `
+    <td><input class="edit-input" id="ei-date" type="date" value="${entry.date}" style="width:135px"></td>
+    <td><input class="edit-input" id="ei-weight" type="number" step="0.1" min="20" max="400" value="${entry.weight}" style="width:80px"></td>
+    <td style="color:var(--muted);font-size:0.72rem;">—</td>
+    <td><input class="edit-input" id="ei-note" type="text" value="${entry.note||''}" placeholder="Note…" style="width:100%;min-width:80px"></td>
+    <td><div class="row-actions">
+      <button class="save-btn" onclick="saveEditRow('${date}')">✓</button>
+      <button class="cancel-btn" onclick="cancelEditRow(this.closest('tr'))">✕</button>
+    </div></td>`;
+  tr.querySelector('#ei-weight').focus();
+  tr.querySelector('#ei-weight').select();
+  // Allow Enter to save, Escape to cancel
+  tr.addEventListener('keydown', function handler(ev) {
+    if (ev.key==='Enter') { saveEditRow(date); tr.removeEventListener('keydown', handler); }
+    if (ev.key==='Escape') { cancelEditRow(tr); tr.removeEventListener('keydown', handler); }
+  });
+}
+
+function saveEditRow(oldDate) {
+  const tr = G('logTable').querySelector('tr.editing');
+  if (!tr) return;
+  const newDate = tr.querySelector('#ei-date').value;
+  const newWeight = parseFloat(tr.querySelector('#ei-weight').value);
+  const newNote = tr.querySelector('#ei-note').value.trim();
+  if (!newDate || isNaN(newWeight) || newWeight < 20 || newWeight > 400) {
+    toast('Invalid date or weight!','e'); return;
+  }
+  // Remove old entry
+  entries = entries.filter(e=>e.date!==oldDate);
+  // If date changed and new date already exists, overwrite it
+  entries = entries.filter(e=>e.date!==newDate);
+  entries.push({date:newDate, weight:newWeight, note:newNote});
+  entries.sort((a,b)=>a.date.localeCompare(b.date));
+  save();
+  saveEntry({date:newDate, weight:newWeight, note:newNote});
+  if (oldDate !== newDate && window._currentUID) window.deleteEntryFromFirestore(window._currentUID, oldDate);
+  render();
+  toast('✓ Entry updated!','s');
+}
+
+function cancelEditRow(tr) {
+  // Just re-render to restore the row
+  const sorted=[...entries].sort((a,b)=>a.date.localeCompare(b.date));
+  renderTable(sorted);
 }
 
 function renderLastEntry(sorted) {
